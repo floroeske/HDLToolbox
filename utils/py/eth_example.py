@@ -1,7 +1,11 @@
+#!/usr/bin/env python3
+
 import tkinter as tk
 import socket
 import time
 import threading
+import signal
+import sys
 
 interface = "enp2s0"
 
@@ -18,7 +22,8 @@ class EthExampleApp:
 
         self.root = root
 
-        self.running = True  # Control flag for the thread
+        # Control flag for the thread
+        self.running = True
 
         # Network details
         self.interface = interface
@@ -28,9 +33,10 @@ class EthExampleApp:
         self.fpga_mac = fpga_mac
         self.send_string = send_string
 
+        self.sw_value = None
+
         self.createSocket()
         self.createWindow()
-
 
         # Start the counter thread
         self.sw_thread = threading.Thread(target=self.updateSwitches)
@@ -38,6 +44,14 @@ class EthExampleApp:
 
         # Ensure proper shutdown
         root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.root.after(100, self.poll_signal)
+        signal.signal(signal.SIGINT, self.signal_handler)
+
+    def poll_signal(self):
+        self.root.after(100, self.poll_signal)
+
+    def signal_handler(self, sig, frame):
+        self.on_closing()
 
     def createSocket(self):
         """
@@ -55,16 +69,20 @@ class EthExampleApp:
 
         root = self.root
 
-        #Create TKinter window
+        self.root.title("LED Thing")
+
+        # Create TKinter window
         # Create the main application window
         # Create a Label widget to provide LED values
         self.instruction_label = tk.Label(root, text="LED value")
-        self.instruction_label.pack(pady=5)  # Add some padding around the widget
+        # Add some padding around the widget
+        self.instruction_label.pack(pady=5)
 
         # Create an Entry widget to enter LED value desired
         self.entry_text = tk.StringVar()
+        self.entry_text.set("0x0000")  # Set initial value
         self.entry = tk.Entry(root, textvariable=self.entry_text)
-        self.entry.pack(pady=10)  # Add some padding around the widget
+        self.entry.pack(pady=10)
 
         # Create a Button widget to trigger LED packet creation
         self.button = tk.Button(root, text="Set LED value", command=self.setLEDValue)
@@ -83,10 +101,7 @@ class EthExampleApp:
         self.switches_label.pack(pady=10)
 
     def sendLEDpacket(self, value):
-
-
         # String to send over network
-
 
         # base packet
         packet = bytearray(b"\xe8\x6a\x64\xe7\xe8\x30\xec\x08\x6b\x0d\xfc\x31\x08\x00\x45\x00\x00\x41\x00\x00\x00\x00\x40\x11\x65\xb3\x0a\x00\x00\x0a\x0a\x00\x00\xf0\xff\xff\xff\xff\x00\x2d\x00\x00\x53\x57\x49\x54\x43\x48\x45\x53\x20\x43\x48\x41\x4e\x47\x45\x44\x21\x20\x4e\x45\x57\x20\x56\x41\x4c\x55\x45\x3a\x20\x30\x78\x00\x01\x38\x30\x0a\x0d")
@@ -103,19 +118,32 @@ class EthExampleApp:
         for index, letter in enumerate(self.send_string):
             packet[42+index] = ord(letter)
 
-
         self.s_inst.send(packet)
 
     def getSWValue(self):
+        # set a timeout of 1 second on the socket
+        self.s_inst.settimeout(0.2)
 
-        r=self.s_inst.recv(2000)
-        # check if packet matches
-        if r[0:6]==self.my_mac and r[6:12]==self.fpga_mac:
-            return r[42:].decode("utf-8")
+        try:
+            r = self.s_inst.recv(2000)
+
+            # check if packet matches
+            if r[0:6] == self.my_mac and r[6:12] == self.fpga_mac:
+                return r[42:].decode("utf-8")
+
+        except socket.timeout as e:
+            # print(f"Timeout: {e}")
+            pass
+
+        except Exception as e:
+            print(f"Error receiving data: {e}")
+
+        return None
 
     def updateSwitches(self):
         while self.running:
             sw_value =  self.getSWValue()
+
             if sw_value is not None:
                 self.sw_value = sw_value
                 self.switches_label.config(text=f'Switches: {self.sw_value[-8:-1]}')
@@ -123,20 +151,33 @@ class EthExampleApp:
 
     # Function to get the content of the Entry widget and update the led_label
     def setLEDValue(self):
-        led_value = int(self.entry.get())  # Retrieve the text from the Entry widget
-        self.led_label.config(text=f'Leds: 0x{led_value:04x}')  # Update the led_label
+
+        # Retrieve the text from the Entry widget
+        # automatic detect base to convert to int
+        led_value = int(self.entry.get(), 0)
+
+        # Update the led_label
+        self.led_label.config(text=f'Leds: 0x{led_value:04x}')
         self.sendLEDpacket(led_value)
 
     # Function to get the content of the Entry widget and update the led_label
     def switchesToLeds(self):
-        self.led_label.config(text=f'Leds: {self.sw_value[-8:-1]}')  # Update the led_label
-        self.sendLEDpacket(int(self.sw_value[-6:-1], 16))
-        self.entry_text.set(f'{int(self.sw_value[-6:-1], 16)}')
+
+        if self.sw_value is not None:
+            # Update the led_label
+            self.led_label.config(text=f'Leds: {self.sw_value[-8:-1]}')
+            self.sendLEDpacket(int(self.sw_value[-6:-1], 16))
+            self.entry_text.set(f'{int(self.sw_value[-6:-1], 16)}')
+        else:
+            print("No sw_value received yet")
 
     def on_closing(self):
         # Stop the counter thread and close the window
+        print("I'm leaving")
         self.running = False
-        self.sw_thread.join()  # Wait for the thread to finish
+
+        # Wait for the thread to finish
+        self.sw_thread.join()
         self.root.destroy()
 
 # Create the main application window
@@ -147,3 +188,4 @@ app = EthExampleApp(root,interface,my_ip, fpga_ip, my_mac, fpga_mac, send_string
 
 # Run the Tkinter event loop
 root.mainloop()
+print("Bye")
