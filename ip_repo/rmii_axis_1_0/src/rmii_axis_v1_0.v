@@ -21,10 +21,10 @@ module rmii_axis_v1_0 #
    )
    (
 
-    output		ETH_MDC,
-    inout		ETH_MDIO,
+    output		ETH_MDC,    // Not connected
+    inout		ETH_MDIO,   // Not connected
     input		ETH_CRSDV,
-    input		ETH_RXERR,
+    input		ETH_RXERR,  // Not connected
     input [1:0]		ETH_RXD,
     output		ETH_TXEN,
     output [1:0]	ETH_TXD,
@@ -61,8 +61,7 @@ module rmii_axis_v1_0 #
        .FPGA_IP(FPGA_IP),
        .HOST_IP(HOST_IP),
        .FPGA_PORT(FPGA_PORT),
-       .HOST_PORT(HOST_PORT),
-       .HEADER_CHECKSUM(HEADER_CHECKSUM)
+       .HOST_PORT(HOST_PORT)
        )
    packet_gen_i
      (

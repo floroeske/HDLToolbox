@@ -208,8 +208,7 @@ module packet_gen
        .FPGA_IP(FPGA_IP),
        .HOST_IP(HOST_IP),
        .FPGA_PORT(FPGA_PORT),
-       .HOST_PORT(HOST_PORT),
-       .HEADER_CHECKSUM(HEADER_CHECKSUM)
+       .HOST_PORT(HOST_PORT)
        )
    eth_header_gen
      (

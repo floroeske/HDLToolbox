@@ -7,7 +7,7 @@ import threading
 import signal
 import sys
 
-interface = "enp2s0"
+interface = "enp0s31f6"
 
 my_ip = [10,0,0,10]
 fpga_ip = [10,0,0,240]
